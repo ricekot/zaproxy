@@ -100,6 +100,7 @@ class SessionUnitTest {
             assertThat(context.getUrlParamParser(), is(instanceOf(StandardParameterParser.class)));
             assertThat(context.getPostParamParser(), is(instanceOf(StandardParameterParser.class)));
             assertThat(context.getDataDrivenNodes(), is(empty()));
+            assertThat(context.getDataDrivenNodeExclusions(), is(empty()));
         }
 
         private static File contextFile(String content) throws Exception {

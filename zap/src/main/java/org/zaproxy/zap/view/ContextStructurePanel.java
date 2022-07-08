@@ -23,8 +23,6 @@ import java.awt.CardLayout;
 import java.awt.Dimension;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -177,6 +175,7 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
         ParameterParser formParamParser = context.getPostParamParser();
 
         this.ddnTableModel.setStructuralNodeModifiers(context.getDataDrivenNodes());
+        this.ddnTableModel.addStructuralNodeModifiers(context.getDataDrivenNodeExclusions());
 
         if (urlParamParser instanceof StandardParameterParser) {
             StandardParameterParser urlStdParamParser = (StandardParameterParser) urlParamParser;
@@ -246,12 +245,19 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
         ParameterParser formParamParser = context.getPostParamParser();
         List<String> structParams = new ArrayList<>();
         List<StructuralNodeModifier> ddns = new ArrayList<>();
+        List<StructuralNodeModifier> ddnExclusions = new ArrayList<>();
 
         for (StructuralNodeModifier snm : this.ddnTableModel.getElements()) {
-            if (snm.getType().equals(StructuralNodeModifier.Type.StructuralParameter)) {
-                structParams.add(snm.getName());
-            } else {
-                ddns.add(snm);
+            switch (snm.getType()) {
+                case StructuralParameter:
+                    structParams.add(snm.getName());
+                    break;
+                case DataDrivenNodeExclusion:
+                    ddnExclusions.add(snm);
+                    break;
+                case DataDrivenNode:
+                default:
+                    ddns.add(snm);
             }
         }
 
@@ -274,6 +280,7 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
         }
 
         context.setDataDrivenNodes(ddns);
+        context.setDataDrivenNodeExclusions(ddnExclusions);
 
         if (updateSiteStructure) {
             context.restructureSiteTree();
@@ -379,6 +386,8 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
         private static final String FIELD_REGEX = "context.ddn.dialog.regex";
 
         private static final String VALUE_TYPE_DATA = "context.ddn.dialog.type.data";
+        private static final String VALUE_TYPE_DATA_EXCLUSION =
+                "context.ddn.dialog.type.dataExclusion";
         private static final String VALUE_TYPE_STRUCT = "context.ddn.dialog.type.struct";
 
         private StructuralNodeModifier.Type type = StructuralNodeModifier.Type.StructuralParameter;
@@ -407,17 +416,11 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
                         FIELD_TYPE,
                         new String[] {
                             Constant.messages.getString(VALUE_TYPE_STRUCT),
-                            Constant.messages.getString(VALUE_TYPE_DATA)
+                            Constant.messages.getString(VALUE_TYPE_DATA),
+                            Constant.messages.getString(VALUE_TYPE_DATA_EXCLUSION)
                         },
                         getModVal(type));
-                this.addFieldListener(
-                        FIELD_TYPE,
-                        new ActionListener() {
-                            @Override
-                            public void actionPerformed(ActionEvent e) {
-                                setFieldStates();
-                            }
-                        });
+                this.addFieldListener(FIELD_TYPE, e -> setFieldStates());
             }
 
             this.addTextField(FIELD_NAME, name);
@@ -436,12 +439,18 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
                         .getString(VALUE_TYPE_STRUCT)
                         .equals(this.getStringValue(FIELD_TYPE))) {
                     type = StructuralNodeModifier.Type.StructuralParameter;
-                } else {
+                } else if (Constant.messages
+                        .getString(VALUE_TYPE_DATA)
+                        .equals(this.getStringValue(FIELD_TYPE))) {
                     type = StructuralNodeModifier.Type.DataDrivenNode;
+                } else if (Constant.messages
+                        .getString(VALUE_TYPE_DATA_EXCLUSION)
+                        .equals(this.getStringValue(FIELD_TYPE))) {
+                    type = StructuralNodeModifier.Type.DataDrivenNodeExclusion;
                 }
             }
             this.getField(FIELD_REGEX)
-                    .setEnabled(StructuralNodeModifier.Type.DataDrivenNode.equals(type));
+                    .setVisible(!StructuralNodeModifier.Type.StructuralParameter.equals(type));
         }
 
         private String getModVal(StructuralNodeModifier.Type type) {
@@ -450,6 +459,8 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
                     return Constant.messages.getString(VALUE_TYPE_STRUCT);
                 case DataDrivenNode:
                     return Constant.messages.getString(VALUE_TYPE_DATA);
+                case DataDrivenNodeExclusion:
+                    return Constant.messages.getString(VALUE_TYPE_DATA_EXCLUSION);
             }
             return "";
         }
@@ -470,11 +481,13 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
                 return Constant.messages.getString("context.ddn.dialog.error.name");
             }
 
-            if (StructuralNodeModifier.Type.DataDrivenNode.equals(type)) {
+            if (StructuralNodeModifier.Type.DataDrivenNode.equals(type)
+                    || StructuralNodeModifier.Type.DataDrivenNodeExclusion.equals(type)) {
                 if (this.isEmptyField(FIELD_REGEX)) {
                     return Constant.messages.getString("context.ddn.dialog.error.regex");
                 }
-                if (!this.getStringValue(FIELD_REGEX).matches(".*\\(.*\\).*\\(.*\\).*")) {
+                if (StructuralNodeModifier.Type.DataDrivenNode.equals(type)
+                        && !this.getStringValue(FIELD_REGEX).matches(".*\\(.*\\).*\\(.*\\).*")) {
                     // We need at least 2 groups
                     return Constant.messages.getString("context.ddn.dialog.error.regex");
                 }

@@ -80,6 +80,8 @@ public class StructuralNodeModifiersTableModel
                         return Constant.messages.getString("context.ddn.table.type.struct");
                     case DataDrivenNode:
                         return Constant.messages.getString("context.ddn.table.type.data");
+                    case DataDrivenNodeExclusion:
+                        return Constant.messages.getString("context.ddn.table.type.dataExclusion");
                 }
                 return null;
             case 1:

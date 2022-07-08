@@ -79,7 +79,7 @@ public class PopupMenuItemContextDataDrivenNode extends PopupMenuItemSiteNodeCon
         }
         sb.insert(0, "/(");
         sb.insert(0, parent.getCleanNodeName());
-        sb.append(")(.+?)(/.*)");
+        sb.append(")([^/?]+)(/?.*)");
         Pattern p = Pattern.compile(sb.toString());
 
         uiSharedContext.addDataDrivenNodes(

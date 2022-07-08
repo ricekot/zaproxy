@@ -524,12 +524,15 @@ public class Session {
 
             try {
                 // Set up the Data Driven Nodes
-                List<String> strs =
-                        this.getContextDataStrings(
-                                ctx.getId(), RecordContext.TYPE_DATA_DRIVEN_NODES);
-                for (String str : strs) {
-                    ctx.addDataDrivenNodes(new StructuralNodeModifier(str));
-                }
+                this.getContextDataStrings(ctx.getId(), RecordContext.TYPE_DATA_DRIVEN_NODES)
+                        .stream()
+                        .map(StructuralNodeModifier::new)
+                        .forEach(ctx::addDataDrivenNodes);
+                this.getContextDataStrings(
+                                ctx.getId(), RecordContext.TYPE_DATA_DRIVEN_NODE_EXCLUSIONS)
+                        .stream()
+                        .map(StructuralNodeModifier::new)
+                        .forEach(ctx::addDataDrivenNodeExclusions);
             } catch (Exception e) {
                 log.error("Failed to load data driven nodes for context " + ctx.getId(), e);
             }
@@ -1263,6 +1266,10 @@ public class Session {
                     c.getId(),
                     RecordContext.TYPE_DATA_DRIVEN_NODES,
                     snmListToStringList(c.getDataDrivenNodes()));
+            this.setContextData(
+                    c.getId(),
+                    RecordContext.TYPE_DATA_DRIVEN_NODE_EXCLUSIONS,
+                    snmListToStringList(c.getDataDrivenNodeExclusions()));
 
             model.saveContext(c);
         } catch (DatabaseException e) {
@@ -1462,9 +1469,15 @@ public class Session {
                 c.getPostParamParser().getClass().getCanonicalName());
         config.setProperty(
                 Context.CONTEXT_CONFIG_POSTPARSER_CONFIG, c.getPostParamParser().getConfig());
-        for (StructuralNodeModifier snm : c.getDataDrivenNodes()) {
-            config.addProperty(Context.CONTEXT_CONFIG_DATA_DRIVEN_NODES, snm.getConfig());
-        }
+        c.getDataDrivenNodes().stream()
+                .map(StructuralNodeModifier::getConfig)
+                .forEach(p -> config.addProperty(Context.CONTEXT_CONFIG_DATA_DRIVEN_NODES, p));
+        c.getDataDrivenNodeExclusions().stream()
+                .map(StructuralNodeModifier::getConfig)
+                .forEach(
+                        p ->
+                                config.addProperty(
+                                        Context.CONTEXT_CONFIG_DATA_DRIVEN_NODE_EXCLUSIONS, p));
 
         model.exportContext(c, config);
         config.save(file);
@@ -1554,9 +1567,14 @@ public class Session {
             parser.setContext(c);
             c.setPostParamParser(parser);
         }
-        for (Object obj : config.getList(Context.CONTEXT_CONFIG_DATA_DRIVEN_NODES)) {
-            c.addDataDrivenNodes(new StructuralNodeModifier(obj.toString()));
-        }
+        config.getList(Context.CONTEXT_CONFIG_DATA_DRIVEN_NODES).stream()
+                .map(Object::toString)
+                .map(StructuralNodeModifier::new)
+                .forEach(c::addDataDrivenNodes);
+        config.getList(Context.CONTEXT_CONFIG_DATA_DRIVEN_NODE_EXCLUSIONS).stream()
+                .map(Object::toString)
+                .map(StructuralNodeModifier::new)
+                .forEach(c::addDataDrivenNodeExclusions);
 
         model.importContext(c, config);
 

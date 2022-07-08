@@ -330,37 +330,49 @@ public class StandardParameterParser implements ParameterParser {
             if (context != null) {
                 String uriStr = uri.toString();
                 boolean changed = false;
-                for (StructuralNodeModifier ddn : context.getDataDrivenNodes()) {
-                    Matcher m = ddn.getPattern().matcher(uriStr);
-                    if (m.find()) {
-                        if (m.groupCount() == 3) {
-                            path =
-                                    m.group(1)
-                                            + SessionStructure.DATA_DRIVEN_NODE_PREFIX
-                                            + ddn.getName()
-                                            + SessionStructure.DATA_DRIVEN_NODE_POSTFIX
-                                            + m.group(3);
-                            if (!path.startsWith("/")) {
-                                // Should always start with a slash;)
-                                path = "/" + path;
-                            }
-                            changed = true;
-                        } else if (m.groupCount() == 2) {
-                            path =
-                                    m.group(1)
-                                            + SessionStructure.DATA_DRIVEN_NODE_PREFIX
-                                            + ddn.getName()
-                                            + SessionStructure.DATA_DRIVEN_NODE_POSTFIX;
-                            if (!path.startsWith("/")) {
-                                // Should always start with a slash;)
-                                path = "/" + path;
-                            }
-                            changed = true;
-                        }
+                boolean excluded = false;
+
+                for (StructuralNodeModifier exclusion : context.getDataDrivenNodeExclusions()) {
+                    Matcher m = exclusion.getPattern().matcher(uriStr);
+                    if (m.matches()) {
+                        excluded = true;
+                        break;
                     }
                 }
-                if (changed) {
-                    log.debug("Changed path from " + uri.getPath() + " to " + path);
+
+                if (!excluded) {
+                    for (StructuralNodeModifier ddn : context.getDataDrivenNodes()) {
+                        Matcher m = ddn.getPattern().matcher(uriStr);
+                        if (m.find()) {
+                            if (m.groupCount() == 3) {
+                                path =
+                                        m.group(1)
+                                                + SessionStructure.DATA_DRIVEN_NODE_PREFIX
+                                                + ddn.getName()
+                                                + SessionStructure.DATA_DRIVEN_NODE_POSTFIX
+                                                + m.group(3);
+                                if (!path.startsWith("/")) {
+                                    // Should always start with a slash;)
+                                    path = "/" + path;
+                                }
+                                changed = true;
+                            } else if (m.groupCount() == 2) {
+                                path =
+                                        m.group(1)
+                                                + SessionStructure.DATA_DRIVEN_NODE_PREFIX
+                                                + ddn.getName()
+                                                + SessionStructure.DATA_DRIVEN_NODE_POSTFIX;
+                                if (!path.startsWith("/")) {
+                                    // Should always start with a slash;)
+                                    path = "/" + path;
+                                }
+                                changed = true;
+                            }
+                        }
+                    }
+                    if (changed) {
+                        log.debug("Changed path from " + uri.getPath() + " to " + path);
+                    }
                 }
             }
 

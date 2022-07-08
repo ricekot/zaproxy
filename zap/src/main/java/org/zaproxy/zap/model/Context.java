@@ -69,6 +69,8 @@ public class Context {
     public static final String CONTEXT_CONFIG_POSTPARSER_CONFIG =
             CONTEXT_CONFIG_POSTPARSER + ".config";
     public static final String CONTEXT_CONFIG_DATA_DRIVEN_NODES = CONTEXT_CONFIG + ".ddns";
+    public static final String CONTEXT_CONFIG_DATA_DRIVEN_NODE_EXCLUSIONS =
+            CONTEXT_CONFIG + ".ddnexc";
 
     private static Logger log = LogManager.getLogger(Context.class);
 
@@ -82,6 +84,7 @@ public class Context {
     private List<Pattern> includeInPatterns = new ArrayList<>();
     private List<Pattern> excludeFromPatterns = new ArrayList<>();
     private List<StructuralNodeModifier> dataDrivenNodes = new ArrayList<>();
+    private List<StructuralNodeModifier> dataDrivenNodeExclusions = new ArrayList<>();
 
     /** The authentication method. */
     private AuthenticationMethod authenticationMethod = null;
@@ -739,6 +742,23 @@ public class Context {
         }
     }
 
+    public List<StructuralNodeModifier> getDataDrivenNodeExclusions() {
+        List<StructuralNodeModifier> exclusions =
+                new ArrayList<>(this.dataDrivenNodeExclusions.size());
+        for (StructuralNodeModifier exclusion : this.dataDrivenNodeExclusions) {
+            exclusions.add(exclusion.clone());
+        }
+        return exclusions;
+    }
+
+    public void setDataDrivenNodeExclusions(List<StructuralNodeModifier> dataDrivenNodeExclusions) {
+        this.dataDrivenNodeExclusions = dataDrivenNodeExclusions;
+    }
+
+    public void addDataDrivenNodeExclusions(StructuralNodeModifier exclusion) {
+        this.dataDrivenNodes.add(exclusion.clone());
+    }
+
     /**
      * Gets an unmodifiable view of the list of custom pages.
      *
@@ -890,6 +910,7 @@ public class Context {
         newContext.postParamParser = this.postParamParser.clone();
         newContext.authorizationDetectionMethod = this.authorizationDetectionMethod.clone();
         newContext.dataDrivenNodes = this.getDataDrivenNodes();
+        newContext.dataDrivenNodeExclusions = this.getDataDrivenNodeExclusions();
         newContext.setCustomPages(getCustomPages());
         return newContext;
     }

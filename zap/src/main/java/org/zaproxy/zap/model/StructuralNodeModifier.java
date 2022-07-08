@@ -21,6 +21,7 @@ package org.zaproxy.zap.model;
 
 import java.util.regex.Pattern;
 import net.sf.json.JSONObject;
+import org.parosproxy.paros.Constant;
 import org.zaproxy.zap.utils.Enableable;
 
 /**
@@ -46,7 +47,21 @@ import org.zaproxy.zap.utils.Enableable;
 public class StructuralNodeModifier extends Enableable implements Cloneable {
     public enum Type {
         DataDrivenNode,
-        StructuralParameter
+        DataDrivenNodeExclusion,
+        StructuralParameter;
+
+        public String getName() {
+            switch (this) {
+                case DataDrivenNode:
+                    return Constant.messages.getString("context.ddn.dialog.type.data");
+                case DataDrivenNodeExclusion:
+                    return Constant.messages.getString("context.ddn.dialog.type.dataExclusion");
+                case StructuralParameter:
+                    return Constant.messages.getString("context.ddn.dialog.type.struct");
+                default:
+                    return null;
+            }
+        }
     }
 
     private static final String CONFIG_NAME = "name";
