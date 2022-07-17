@@ -98,6 +98,7 @@ import org.parosproxy.paros.view.View;
 import org.zaproxy.zap.ZAP;
 import org.zaproxy.zap.eventBus.Event;
 import org.zaproxy.zap.model.SessionStructure;
+import org.zaproxy.zap.model.SiteNodeQuery;
 import org.zaproxy.zap.model.Target;
 import org.zaproxy.zap.view.SiteTreeFilter;
 
@@ -146,7 +147,7 @@ public class SiteMap extends SortedTreeModel {
         String folder;
 
         try {
-            String host = getHostName(uri);
+            String host = SessionStructure.getHostName(uri);
 
             // no host yet
             parent = findChild(parent, host);
@@ -211,7 +212,7 @@ public class SiteMap extends SortedTreeModel {
 
         try {
 
-            String host = getHostName(uri);
+            String host = SessionStructure.getHostName(uri);
 
             // no host yet
             parent = findChild(parent, host);
@@ -258,6 +259,42 @@ public class SiteMap extends SortedTreeModel {
         return this.findNode(uri, "GET", null);
     }
 
+    public synchronized SiteNode findNode(SiteNodeQuery query) {
+        try {
+            if (Constant.isLowMemoryOptionSet()) {
+                throw new InvalidParameterException(
+                        "SiteMap should not be accessed when the low memory option is set");
+            }
+            if (query == null) {
+                return null;
+            }
+            String host = SessionStructure.getHostName(query.getUri());
+            SiteNode resultNode = findChild(getRoot(), host);
+            if (resultNode == null) {
+                return null;
+            }
+            List<String> path = SessionStructure.getTreePath(model, query);
+            for (int i = 0; i < path.size(); i++) {
+                String pathPortion = path.get(i);
+                if (pathPortion == null || pathPortion.isEmpty()) {
+                    return null;
+                }
+                if (i == path.size() - 1) {
+                    String leafName =
+                            SessionStructure.getLeafName(model, pathPortion, query.getUri(), query.getHttpMethod(), query.getRequestBody());
+                    return findChild(resultNode, leafName);
+                }
+                resultNode = findChild(resultNode, pathPortion);
+                if (resultNode == null) {
+                    return null;
+                }
+            }
+
+        } catch (Exception e) {
+            log.error(e.getMessage());
+        }
+    }
+
     public synchronized SiteNode findNode(URI uri, String method, String postData) {
         if (Constant.isLowMemoryOptionSet()) {
             throw new InvalidParameterException(
@@ -267,7 +304,7 @@ public class SiteMap extends SortedTreeModel {
         String folder = "";
 
         try {
-            String host = getHostName(uri);
+            String host = SessionStructure.getHostName(uri);
 
             // no host yet
             resultNode = findChild(getRoot(), host);
@@ -275,6 +312,8 @@ public class SiteMap extends SortedTreeModel {
                 return null;
             }
 
+            // TODO: SessionStructure#getTreePath(Model, URI) does not make use of custom variants and
+            //  does not add structural parameters from `application/x-www-form-urlencoded` request bodies.
             List<String> path = SessionStructure.getTreePath(model, uri);
             for (int i = 0; i < path.size(); i++) {
                 folder = path.get(i);
@@ -306,7 +345,7 @@ public class SiteMap extends SortedTreeModel {
         if (msg == null) {
             return null;
         }
-        return this.findClosestParent(msg.getRequestHeader().getURI());
+        return this.findClosestParent(SiteNodeQuery.fromHttpMessage(msg));
     }
 
     /*
@@ -316,12 +355,19 @@ public class SiteMap extends SortedTreeModel {
         if (uri == null) {
             return null;
         }
+        SiteNodeQuery query = new SiteNodeQuery();
+        query.setUri(uri);
+        return this.findClosestParent(query);
+    }
+
+    public synchronized SiteNode findClosestParent(SiteNodeQuery query) {
+        URI uri = query.getUri();
         SiteNode lastParent = null;
         SiteNode parent = getRoot();
         String folder = "";
 
         try {
-            String host = getHostName(uri);
+            String host = SessionStructure.getHostName(uri);
 
             // no host yet
             parent = findChild(parent, host);
@@ -330,7 +376,7 @@ public class SiteMap extends SortedTreeModel {
             }
             lastParent = parent;
 
-            List<String> path = SessionStructure.getTreePath(model, uri);
+            List<String> path = SessionStructure.getTreePath(model, query);
             for (int i = 0; i < path.size(); i++) {
                 folder = path.get(i);
                 if (folder != null && !folder.equals("")) {
@@ -423,7 +469,7 @@ public class SiteMap extends SortedTreeModel {
 
         try {
 
-            String host = getHostName(uri);
+            String host = SessionStructure.getHostName(uri);
 
             // add host
             parent = findAndAddChild(parent, host, ref, msg);
@@ -659,29 +705,6 @@ public class SiteMap extends SortedTreeModel {
 
     public void removeHistoryReference(int historyId) {
         hrefMap.remove(historyId);
-    }
-
-    // returns a representation of the host name in the site map
-    private String getHostName(URI uri) throws URIException {
-        StringBuilder host = new StringBuilder();
-
-        String scheme = uri.getScheme();
-        if (scheme == null) {
-            scheme = "http";
-        } else {
-            scheme = scheme.toLowerCase();
-        }
-        host.append(scheme).append("://").append(uri.getHost());
-
-        int port = uri.getPort();
-        if (port != -1
-                && ((port == 80 && !"http".equals(scheme))
-                        || (port == 443 && !"https".equals(scheme)
-                                || (port != 80 && port != 443)))) {
-            host.append(":").append(port);
-        }
-
-        return host.toString();
     }
 
     /**

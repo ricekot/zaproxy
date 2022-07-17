@@ -36,7 +36,6 @@ import org.parosproxy.paros.model.Session;
 import org.parosproxy.paros.model.SiteMap;
 import org.parosproxy.paros.model.SiteNode;
 import org.parosproxy.paros.network.HttpMessage;
-import org.parosproxy.paros.network.HttpRequestHeader;
 import org.parosproxy.paros.network.HttpStatusCode;
 import org.parosproxy.paros.view.View;
 import org.zaproxy.zap.authentication.AuthenticationMethod;
@@ -615,7 +614,7 @@ public class Context {
 
     private boolean checkNode(SiteNode sn) {
         // Loop backwards through the children TODO change for lowmem!
-        // log.debug("checkNode " + sn.getHierarchicNodeName());		// Useful for debugging
+        log.debug("checkNode " + sn.getHierarchicNodeName());		// Useful for debugging
         int origChildren = sn.getChildCount();
         int movedChildren = 0;
         for (SiteNode childNode : getChildren(sn)) {
@@ -630,12 +629,13 @@ public class Context {
 
             try {
                 SiteNode sn2;
-                if (HttpRequestHeader.POST.equals(href.getMethod())) {
+                if (href.getRequestBodyContentType() != null &&
+                href.getRequestBodyContentType().startsWith("application/x-www-form-urlencoded")) {
                     // Have to go to the db as POST data can be used in the name
                     sn2 = sitesTree.findNode(href.getHttpMessage());
                 } else {
                     // This is better as it doesn't require a db read
-                    sn2 = sitesTree.findNode(href.getURI());
+                    sn2 = sitesTree.findNode(href.getURI(), href.getMethod(), href.getRequestBody());
                 }
 
                 if (sn2 == null
@@ -653,7 +653,7 @@ public class Context {
                         return true;
                     }
                 }
-                // log.debug("Didn't need to move " + sn.getHierarchicNodeName());	// Useful for
+                 log.debug("Didn't need to move " + sn.getHierarchicNodeName());	// Useful for
                 // debugging
             } catch (Exception e) {
                 log.error(e.getMessage(), e);

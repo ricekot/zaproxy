@@ -20,6 +20,7 @@
 package org.zaproxy.zap.model;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -56,20 +57,6 @@ public class SessionStructure {
     /**
      * Adds the message to the Sites tree
      *
-     * @param session the session
-     * @param ref the history reference
-     * @param msg the message
-     * @return the node added to the Sites Tree
-     * @depreciated Use {@link #addPath(Model, HistoryReference, HttpMessage)}
-     */
-    @Deprecated
-    public static StructuralNode addPath(Session session, HistoryReference ref, HttpMessage msg) {
-        return addPath(session, ref, msg, false);
-    }
-
-    /**
-     * Adds the message to the Sites tree
-     *
      * @param model the model
      * @param ref the history reference
      * @param msg the message
@@ -78,23 +65,6 @@ public class SessionStructure {
      */
     public static StructuralNode addPath(Model model, HistoryReference ref, HttpMessage msg) {
         return addPath(model, ref, msg, false);
-    }
-
-    /**
-     * Adds the message to the Sites tree
-     *
-     * @param session the session
-     * @param ref the history reference
-     * @param msg the message
-     * @param newOnly Only return a SiteNode if one was newly created
-     * @return the SiteNode that corresponds to the HttpMessage, or null if newOnly and the node
-     *     already exists
-     * @depreciated Use {@link #addPath(Model, HistoryReference, HttpMessage, boolean)}
-     */
-    @Deprecated
-    public static StructuralNode addPath(
-            Session session, HistoryReference ref, HttpMessage msg, boolean newOnly) {
-        return addPath(Model.getSingleton(), ref, msg, newOnly);
     }
 
     /**
@@ -137,15 +107,14 @@ public class SessionStructure {
         }
     }
 
-    public static List<String> getTreePath(Model model, URI uri) throws URIException {
-        return model.getSession().getUrlParamParser(uri.toString()).getTreePath(uri);
-    }
-
-    public static List<String> getTreePath(Model model, HttpMessage msg) throws URIException {
+    public static List<String> getTreePath(Model model, SiteNodeQuery query) throws URIException {
+        if (query == null) {
+            return Collections.emptyList();
+        }
         for (Variant variant : model.getVariantFactory().createSiteModifyingVariants()) {
             List<String> path;
             try {
-                path = variant.getTreePath(msg);
+                path = variant.getTreePath(query);
                 if (path != null) {
                     return path;
                 }
@@ -153,8 +122,16 @@ public class SessionStructure {
                 log.error(e.getMessage(), e);
             }
         }
-        URI uri = msg.getRequestHeader().getURI();
-        return model.getSession().getUrlParamParser(uri.toString()).getTreePath(msg);
+        URI uri = query.getUri();
+        return model.getSession().getUrlParamParser(uri.toString()).getTreePath(query);
+    }
+
+    public static List<String> getTreePath(Model model, URI uri) throws URIException {
+        return getTreePath(model, SiteNodeQuery.builder().uri(uri).build());
+    }
+
+    public static List<String> getTreePath(Model model, HttpMessage msg) throws URIException {
+        return getTreePath(model, SiteNodeQuery.fromHttpMessage(msg));
     }
 
     /**
@@ -192,38 +169,6 @@ public class SessionStructure {
     /**
      * Finds the node in the Site tree for the given request data
      *
-     * @param sessionId the session id
-     * @param uri the URI
-     * @param method the method
-     * @param postData the POST data
-     * @return the site node or null if not found
-     * @throws DatabaseException
-     * @throws URIException
-     * @depreciated Use {@link #find(Model, URI, String, String)}
-     */
-    @Deprecated
-    public static StructuralNode find(long sessionId, URI uri, String method, String postData)
-            throws DatabaseException, URIException {
-        Model model = Model.getSingleton();
-        if (!Constant.isLowMemoryOptionSet()) {
-            SiteNode node = model.getSession().getSiteTree().findNode(uri, method, postData);
-            if (node == null) {
-                return null;
-            }
-            return new StructuralSiteNode(node);
-        }
-
-        String nodeName = getNodeName(model, uri, method, postData);
-        RecordStructure rs = model.getDb().getTableStructure().find(sessionId, nodeName, method);
-        if (rs == null) {
-            return null;
-        }
-        return new StructuralTableNode(rs);
-    }
-
-    /**
-     * Finds the node in the Site tree for the given request data
-     *
      * @param model the model
      * @param uri the URI
      * @param method the method
@@ -244,7 +189,7 @@ public class SessionStructure {
             return new StructuralSiteNode(node);
         }
 
-        String nodeName = getNodeName(model, uri, method, postData);
+        String nodeName = getNodeName(model, SiteNodeQuery.builder().uri(uri).httpMethod(method).requestBody(postData).build());
         RecordStructure rs =
                 model.getDb().getTableStructure().find(session.getSessionId(), nodeName, method);
         if (rs == null) {
@@ -253,49 +198,25 @@ public class SessionStructure {
         return new StructuralTableNode(rs);
     }
 
-    private static String getNodeName(Model model, URI uri, String method, String postData)
-            throws URIException {
-
-        Session session = model.getSession();
-        List<String> paths = getTreePath(model, uri);
-
-        String host = getHostName(uri);
-        String nodeUrl = pathsToUrl(host, paths, paths.size());
-
-        if (postData != null) {
-            String params = getParams(session, uri, postData);
-            if (params.length() > 0) {
-                nodeUrl = nodeUrl + " " + params;
-            }
-        }
-        return nodeUrl;
-    }
-
     private static String getNodeName(
             Session session, String host, HttpMessage msg, List<String> paths, int size)
             throws URIException {
         String nodeUrl = pathsToUrl(host, paths, size);
-
-        if (msg != null) {
-            String params = getParams(session, msg);
-            if (params.length() > 0) {
-                nodeUrl = nodeUrl + " " + params;
-            }
+        String params = getParams(session, SiteNodeQuery.fromHttpMessage(msg));
+        if (params.length() > 0) {
+            nodeUrl += " " + params;
         }
         return nodeUrl;
     }
 
-    /**
-     * Returns the node name for the given message
-     *
-     * @param msg the message
-     * @return the node name
-     * @throws URIException
-     * @depreciated Use {@link #getNodeName(Model, HttpMessage)}
-     */
-    @Deprecated
-    public static String getNodeName(HttpMessage msg) throws URIException {
-        return getNodeName(Model.getSingleton(), msg);
+    private static String getNodeName(Model model, SiteNodeQuery query) throws URIException {
+        List<String> paths = getTreePath(model, query);
+        String nodeUrl = pathsToUrl(getHostName(query.getUri()), paths, paths.size());
+        String params = getParams(model.getSession(), query);
+        if (params.length() > 0) {
+            nodeUrl += " " + params;
+        }
+        return nodeUrl;
     }
 
     /**
@@ -308,11 +229,7 @@ public class SessionStructure {
      * @since 2.10.0
      */
     public static String getNodeName(Model model, HttpMessage msg) throws URIException {
-        return getNodeName(
-                model,
-                msg.getRequestHeader().getURI(),
-                msg.getRequestHeader().getMethod(),
-                msg.getRequestBody().toString());
+        return getNodeName(model, SiteNodeQuery.fromHttpMessage(msg));
     }
 
     public static String getLeafName(Model model, String nodeName, HttpMessage msg) {
@@ -582,9 +499,9 @@ public class SessionStructure {
 
         if (msg != null) {
             url = msg.getRequestHeader().getURI().toString();
-            String params = getParams(session, msg);
-            if (params.length() > 0) {
-                nodeName = nodeName + " " + params;
+            String params = getParams(session, SiteNodeQuery.fromHttpMessage(msg));
+            if (!params.isEmpty()) {
+                nodeName += " " + params;
             }
         }
 
@@ -699,17 +616,6 @@ public class SessionStructure {
     /**
      * Returns the root node
      *
-     * @return the root node
-     * @depreciated Use {@link #getRootNode(Model)}
-     */
-    @Deprecated
-    public static StructuralNode getRootNode() {
-        return getRootNode(Model.getSingleton());
-    }
-
-    /**
-     * Returns the root node
-     *
      * @param model the model
      * @return the root node
      */
@@ -734,49 +640,27 @@ public class SessionStructure {
         return null;
     }
 
-    private static String getParams(Session session, HttpMessage msg) throws URIException {
-        String postData = null;
-        if (msg.getRequestHeader().getMethod().equalsIgnoreCase(HttpRequestHeader.POST)) {
-            String contentType = msg.getRequestHeader().getHeader(HttpHeader.CONTENT_TYPE);
-            if (contentType != null && contentType.startsWith(MULTIPART_FORM_DATA)) {
-                postData = MULTIPART_FORM_DATA_DISPLAY;
-            } else {
-                postData = msg.getRequestBody().toString();
-            }
-        }
-
-        return getParams(session, msg.getRequestHeader().getURI(), postData);
-    }
-
-    private static String getParams(Session session, URI uri, String postData) throws URIException {
-        String leafName = "";
-        String query = "";
-        boolean hasPostData = postData != null && postData.length() > 0;
-
-        try {
-            query = uri.getQuery();
-        } catch (URIException e) {
-            log.error(e.getMessage(), e);
-        }
+    private static String getParams(Session session, SiteNodeQuery query) throws URIException {
         if (query == null) {
-            query = "";
+            return "";
         }
-        leafName = leafName + getQueryParamString(session.getUrlParameters(uri), hasPostData);
-
-        // also handle POST method query in body
-        query = "";
-        if (hasPostData) {
-            if (postData.equals(MULTIPART_FORM_DATA)) {
-                leafName = leafName + MULTIPART_FORM_DATA_DISPLAY;
-            } else {
-                leafName =
-                        leafName
-                                + getQueryParamString(
-                                        session.getFormParameters(uri, postData), false);
-            }
+        boolean hasReqBody = query.getRequestBody().length() > 0;
+        URI uri = query.getUri();
+        String leafParams = getQueryParamString(session.getUrlParameters(uri), hasReqBody);
+        String contentType = query.getContentTypeHeader();
+        if (!hasReqBody || contentType == null) {
+            return leafParams;
         }
 
-        return leafName;
+        if (contentType.startsWith(MULTIPART_FORM_DATA)) {
+            leafParams += MULTIPART_FORM_DATA_DISPLAY;
+        } else if (contentType.startsWith("application/x-www-form-urlencoded")) {
+            // TODO: why is the last argument in the following call "false"?
+            leafParams +=
+                    getQueryParamString(
+                            session.getFormParameters(uri, query.getRequestBody()), false);
+        }
+        return leafParams;
     }
 
     private static String getQueryParamString(List<NameValuePair> list, boolean isUrlWithPostData) {

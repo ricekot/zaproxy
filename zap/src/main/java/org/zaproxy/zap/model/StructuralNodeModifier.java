@@ -19,6 +19,8 @@
  */
 package org.zaproxy.zap.model;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Pattern;
 import net.sf.json.JSONObject;
 import org.parosproxy.paros.Constant;
@@ -67,16 +69,23 @@ public class StructuralNodeModifier extends Enableable implements Cloneable {
     private static final String CONFIG_NAME = "name";
     private static final String CONFIG_TYPE = "type";
     private static final String CONFIG_PATTERN = "pattern";
+    private static final String CONFIG_METHODS = "methods";
 
     private Type type;
     private Pattern pattern;
     private String name;
+    private List<String> methods;
 
     public StructuralNodeModifier(Type type, Pattern pattern, String name) {
+        this(type, pattern, name, null);
+    }
+
+    public StructuralNodeModifier(Type type, Pattern pattern, String name, List<String> methods) {
         super();
         this.type = type;
         this.pattern = pattern;
         this.name = name;
+        this.methods = methods;
     }
 
     public StructuralNodeModifier(String config) {
@@ -86,6 +95,14 @@ public class StructuralNodeModifier extends Enableable implements Cloneable {
         this.type = Type.valueOf(json.getString(CONFIG_TYPE));
         if (json.containsKey(CONFIG_TYPE)) {
             pattern = Pattern.compile(json.getString(CONFIG_PATTERN));
+        }
+        if (json.containsKey(CONFIG_METHODS)) {
+            this.methods = new ArrayList<>();
+            for (Object method : json.getJSONArray(CONFIG_METHODS)) {
+                if (method != null) {
+                    methods.add(method.toString());
+                }
+            }
         }
     }
 
@@ -109,9 +126,21 @@ public class StructuralNodeModifier extends Enableable implements Cloneable {
         this.name = name;
     }
 
+    public List<String> getMethods() {
+        return methods;
+    }
+
+    public void setMethods(List<String> methods) {
+        this.methods = methods;
+    }
+
+    public boolean hasMethod(String method) {
+        return method == null || methods == null || methods.isEmpty() || methods.contains(method);
+    }
+
     @Override
     public StructuralNodeModifier clone() {
-        return new StructuralNodeModifier(type, Pattern.compile(pattern.toString()), name);
+        return new StructuralNodeModifier(type, Pattern.compile(pattern.toString()), name, methods);
     }
 
     public String getConfig() {
@@ -120,6 +149,9 @@ public class StructuralNodeModifier extends Enableable implements Cloneable {
         json.put(CONFIG_NAME, this.getName());
         if (getPattern() != null) {
             json.put(CONFIG_PATTERN, this.getPattern().pattern());
+        }
+        if (getMethods() != null) {
+            json.put(CONFIG_METHODS, this.getMethods());
         }
         return json.toString();
     }

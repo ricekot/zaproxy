@@ -30,6 +30,7 @@ import java.util.List;
 import org.apache.commons.httpclient.URIException;
 import org.parosproxy.paros.network.HttpMessage;
 import org.zaproxy.zap.core.scanner.InputVector;
+import org.zaproxy.zap.model.SiteNodeQuery;
 
 public interface Variant {
 
@@ -89,6 +90,10 @@ public interface Variant {
      * @throws URIException
      */
     default List<String> getTreePath(HttpMessage msg) throws URIException {
+        return null;
+    }
+
+    default List<String> getTreePath(SiteNodeQuery query) throws URIException {
         return null;
     }
 }

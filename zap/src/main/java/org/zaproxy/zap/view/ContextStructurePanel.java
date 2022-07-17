@@ -29,11 +29,14 @@ import java.util.regex.Pattern;
 import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.SortOrder;
 import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.model.Session;
+import org.parosproxy.paros.network.HttpRequestHeader;
 import org.parosproxy.paros.view.View;
 import org.zaproxy.zap.model.Context;
 import org.zaproxy.zap.model.ParameterParser;
@@ -324,7 +327,8 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
 
             getTable().getColumnExt(0).setPreferredWidth(50);
             getTable().getColumnExt(1).setPreferredWidth(50);
-            getTable().getColumnExt(2).setPreferredWidth(200);
+            getTable().getColumnExt(2).setPreferredWidth(50);
+            getTable().getColumnExt(3).setPreferredWidth(200);
             getTable().setSortOrder(1, SortOrder.ASCENDING);
         }
 
@@ -334,7 +338,7 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
                     new StructuralModifierDialog(
                             View.getSingleton().getSessionDialog(),
                             "context.ddn.dialog.add.title",
-                            new Dimension(500, 200));
+                            new Dimension(500, 275));
 
             return ddnDialog.showDialog(null);
         }
@@ -345,7 +349,7 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
                     new StructuralModifierDialog(
                             View.getSingleton().getSessionDialog(),
                             "context.ddn.dialog.modify.title",
-                            new Dimension(500, 200));
+                            new Dimension(500, 275));
 
             return ddnDialog.showDialog(ddn);
         }
@@ -384,6 +388,7 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
         private static final String FIELD_TYPE = "context.ddn.dialog.type";
         private static final String FIELD_NAME = "context.ddn.dialog.name";
         private static final String FIELD_REGEX = "context.ddn.dialog.regex";
+        private static final String FIELD_METHODS = "context.ddn.dialog.methods";
 
         private static final String VALUE_TYPE_DATA = "context.ddn.dialog.type.data";
         private static final String VALUE_TYPE_DATA_EXCLUSION =
@@ -425,6 +430,12 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
 
             this.addTextField(FIELD_NAME, name);
             this.addTextField(FIELD_REGEX, regex);
+//            JScrollPane methodsScrollPane = new JScrollPane();
+            JList<String> methods = new JList<>(HttpRequestHeader.METHODS);
+            methods.setLayoutOrientation(JList.HORIZONTAL_WRAP);
+            methods.setVisibleRowCount(3);
+//            methodsScrollPane.setViewportView(methods);
+            this.addCustomComponent(FIELD_METHODS, methods);
 
             setFieldStates();
 
@@ -450,7 +461,9 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
                 }
             }
             this.getField(FIELD_REGEX)
-                    .setVisible(!StructuralNodeModifier.Type.StructuralParameter.equals(type));
+                    .setEnabled(!StructuralNodeModifier.Type.StructuralParameter.equals(type));
+            this.getField(FIELD_METHODS)
+                    .setEnabled(!StructuralNodeModifier.Type.StructuralParameter.equals(type));
         }
 
         private String getModVal(StructuralNodeModifier.Type type) {
@@ -467,11 +480,15 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
 
         @Override
         public void save() {
+            @SuppressWarnings("unchecked")
+            List<String> methods =
+                    ((JList<String>) this.getField(FIELD_METHODS)).getSelectedValuesList();
             ddn =
                     new StructuralNodeModifier(
                             type,
                             Pattern.compile(this.getStringValue(FIELD_REGEX)),
-                            this.getStringValue(FIELD_NAME));
+                            this.getStringValue(FIELD_NAME),
+                            methods);
         }
 
         @Override

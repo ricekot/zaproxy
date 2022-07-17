@@ -57,6 +57,8 @@ public interface ParameterParser {
      */
     List<NameValuePair> getParameters(HttpMessage msg, HtmlParameter.Type type);
 
+    List<NameValuePair> getParameters(SiteNodeQuery query, HtmlParameter.Type type);
+
     /**
      * @deprecated 2.10.0 use #parseParameters(String) This method will lose duplicated parameter
      *     names
@@ -106,6 +108,10 @@ public interface ParameterParser {
     List<String> getTreePath(URI uri) throws URIException;
 
     List<String> getTreePath(HttpMessage msg) throws URIException;
+
+    default List<String> getTreePath(SiteNodeQuery query) throws URIException {
+        return Collections.emptyList();
+    }
 
     /**
      * Gets the path of the URI's ancestor found at the given depth, taking into account any context

@@ -22,6 +22,7 @@ package org.zaproxy.zap.view;
 import java.util.ArrayList;
 import java.util.List;
 import org.parosproxy.paros.Constant;
+import org.parosproxy.paros.network.HttpRequestHeader;
 import org.zaproxy.zap.model.Context;
 import org.zaproxy.zap.model.StructuralNodeModifier;
 
@@ -37,6 +38,7 @@ public class StructuralNodeModifiersTableModel
     private static final String[] COLUMN_NAMES = {
         Constant.messages.getString("context.ddn.table.header.type"),
         Constant.messages.getString("context.ddn.table.header.name"),
+        Constant.messages.getString("context.ddn.table.header.methods"),
         Constant.messages.getString("context.ddn.table.header.regex")
     };
 
@@ -87,6 +89,14 @@ public class StructuralNodeModifiersTableModel
             case 1:
                 return snms.get(rowIndex).getName();
             case 2:
+                List<String> methods = snms.get(rowIndex).getMethods();
+                if (methods == null
+                        || methods.isEmpty()
+                        || methods.size() == HttpRequestHeader.METHODS.length) {
+                    return Constant.messages.getString("context.ddn.table.content.allMethods");
+                }
+                return methods.toString();
+            case 3:
                 if (snms.get(rowIndex).getPattern() != null) {
                     return snms.get(rowIndex).getPattern().pattern();
                 }

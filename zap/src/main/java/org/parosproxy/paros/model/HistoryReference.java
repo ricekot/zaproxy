@@ -67,6 +67,7 @@
 // ZAP: 2022/06/27 Add TYPE_PARAM_MINER.
 package org.parosproxy.paros.model;
 
+import java.lang.ref.SoftReference;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -322,7 +323,7 @@ public class HistoryReference {
 
     private static Logger log = LogManager.getLogger(HistoryReference.class);
 
-    private HttpMessage httpMessage;
+    private SoftReference<HttpMessage> httpMessage;
     private HttpMessageCachedData httpMessageCachedData;
 
     /** @return Returns the sessionId. */
@@ -368,7 +369,7 @@ public class HistoryReference {
         build(history.getSessionId(), history.getHistoryId(), history.getHistoryType(), msg);
 
         if (keepMessage) {
-            httpMessage = msg;
+            httpMessage = new SoftReference<>(msg);
         }
     }
 
@@ -453,7 +454,10 @@ public class HistoryReference {
      */
     public HttpMessage getHttpMessage() throws HttpMalformedHeaderException, DatabaseException {
         if (httpMessage != null) {
-            return httpMessage;
+            HttpMessage msg = httpMessage.get();
+            if (msg != null) {
+                return msg;
+            }
         }
 
         // fetch complete message
@@ -816,6 +820,10 @@ public class HistoryReference {
 
     public int getRequestBodyLength() {
         return httpMessageCachedData.getRequestBodyLength();
+    }
+
+    public String getRequestBodyContentType() {
+        return httpMessageCachedData.getRequestBodyContentType();
     }
 
     public int getResponseHeaderLength() {

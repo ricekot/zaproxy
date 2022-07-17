@@ -42,6 +42,7 @@ import org.parosproxy.paros.core.scanner.NameValuePair;
 import org.parosproxy.paros.core.scanner.Variant;
 import org.parosproxy.paros.model.Model;
 import org.parosproxy.paros.model.Session;
+import org.parosproxy.paros.network.HttpHeader;
 import org.parosproxy.paros.network.HttpMessage;
 import org.parosproxy.paros.network.HttpRequestHeader;
 import org.zaproxy.zap.WithConfigsTest;
@@ -214,6 +215,8 @@ class SessionStructureUnitTest {
         msg.getRequestHeader().setMethod(HttpRequestHeader.POST);
         String uri = "https://www.example.com";
         msg.getRequestHeader().setURI(new URI(uri, true));
+        msg.getRequestHeader()
+                .setHeader(HttpHeader.CONTENT_TYPE, "application/x-www-form-urlencoded");
         msg.setRequestBody("e=f&g=h");
         // When
         String nodeName = SessionStructure.getNodeName(model, msg);
@@ -227,6 +230,8 @@ class SessionStructureUnitTest {
         msg.getRequestHeader().setMethod(HttpRequestHeader.POST);
         String uri = "https://www.example.com/";
         msg.getRequestHeader().setURI(new URI(uri, true));
+        msg.getRequestHeader()
+                .setHeader(HttpHeader.CONTENT_TYPE, "application/x-www-form-urlencoded");
         msg.setRequestBody("e=f&g=h");
         // When
         String nodeName = SessionStructure.getNodeName(model, msg);
@@ -240,6 +245,8 @@ class SessionStructureUnitTest {
         msg.getRequestHeader().setMethod(HttpRequestHeader.POST);
         String uri = "https://www.example.com";
         msg.getRequestHeader().setURI(new URI(uri + "?a=b&c=d", true));
+        msg.getRequestHeader()
+                .setHeader(HttpHeader.CONTENT_TYPE, "application/x-www-form-urlencoded");
         msg.setRequestBody("e=f&g=h");
         // When
         String nodeName = SessionStructure.getNodeName(model, msg);
@@ -253,6 +260,8 @@ class SessionStructureUnitTest {
         msg.getRequestHeader().setMethod(HttpRequestHeader.POST);
         String uri = "https://www.example.com/";
         msg.getRequestHeader().setURI(new URI(uri + "?a=b&c=d", true));
+        msg.getRequestHeader()
+                .setHeader(HttpHeader.CONTENT_TYPE, "application/x-www-form-urlencoded");
         msg.setRequestBody("e=f&g=h");
         // When
         String nodeName = SessionStructure.getNodeName(model, msg);
@@ -266,6 +275,8 @@ class SessionStructureUnitTest {
         msg.getRequestHeader().setMethod(HttpRequestHeader.POST);
         String uri = "https://www.example.com/path";
         msg.getRequestHeader().setURI(new URI(uri, true));
+        msg.getRequestHeader()
+                .setHeader(HttpHeader.CONTENT_TYPE, "application/x-www-form-urlencoded");
         msg.setRequestBody("e=f&g=h");
         // When
         String nodeName = SessionStructure.getNodeName(model, msg);
@@ -279,6 +290,8 @@ class SessionStructureUnitTest {
         msg.getRequestHeader().setMethod(HttpRequestHeader.POST);
         String uri = "https://www.example.com/path/";
         msg.getRequestHeader().setURI(new URI(uri, true));
+        msg.getRequestHeader()
+                .setHeader(HttpHeader.CONTENT_TYPE, "application/x-www-form-urlencoded");
         msg.setRequestBody("e=f&g=h");
         // When
         String nodeName = SessionStructure.getNodeName(model, msg);
@@ -292,6 +305,8 @@ class SessionStructureUnitTest {
         msg.getRequestHeader().setMethod(HttpRequestHeader.POST);
         String uri = "https://www.example.com/path";
         msg.getRequestHeader().setURI(new URI(uri + "?a=b&c=d", true));
+        msg.getRequestHeader()
+                .setHeader(HttpHeader.CONTENT_TYPE, "application/x-www-form-urlencoded");
         msg.setRequestBody("e=f&g=h");
         // When
         String nodeName = SessionStructure.getNodeName(model, msg);
@@ -305,6 +320,8 @@ class SessionStructureUnitTest {
         msg.getRequestHeader().setMethod(HttpRequestHeader.POST);
         String uri = "https://www.example.com/path/";
         msg.getRequestHeader().setURI(new URI(uri + "?a=b&c=d", true));
+        msg.getRequestHeader()
+                .setHeader(HttpHeader.CONTENT_TYPE, "application/x-www-form-urlencoded");
         msg.setRequestBody("e=f&g=h");
         // When
         String nodeName = SessionStructure.getNodeName(model, msg);
@@ -319,6 +336,8 @@ class SessionStructureUnitTest {
         msg.getRequestHeader().setMethod(HttpRequestHeader.POST);
         String uri = "https://www.example.com/path/";
         msg.getRequestHeader().setURI(new URI(uri + "?a=b&c=d", true));
+        msg.getRequestHeader()
+                .setHeader(HttpHeader.CONTENT_TYPE, "application/x-www-form-urlencoded");
         msg.setRequestBody("a=b&c=d");
         // When
         String nodeName = SessionStructure.getNodeName(model, msg);

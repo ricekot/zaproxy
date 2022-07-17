@@ -89,21 +89,20 @@
 // ZAP: 2020/11/26 Use Log4j 2 classes for logging.
 // ZAP: 2022/02/09 Remove code no longer needed and deprecate a method.
 // ZAP: 2022/02/28 Remove code deprecated in 2.6.0
+// ZAP: 2022/07/12 Support data driven node exclusions and remove code deprecated in 2.10.0.
 package org.parosproxy.paros.model;
 
 import java.awt.EventQueue;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
 import javax.swing.tree.TreeNode;
@@ -126,7 +125,7 @@ import org.zaproxy.zap.model.Context;
 import org.zaproxy.zap.model.IllegalContextNameException;
 import org.zaproxy.zap.model.NameValuePair;
 import org.zaproxy.zap.model.ParameterParser;
-import org.zaproxy.zap.model.SessionStructure;
+import org.zaproxy.zap.model.SiteNodeQuery;
 import org.zaproxy.zap.model.StandardParameterParser;
 import org.zaproxy.zap.model.StructuralNodeModifier;
 import org.zaproxy.zap.model.Tech;
@@ -1616,31 +1615,6 @@ public class Session {
     }
 
     /**
-     * Returns the specified parameters for the given message based on the parser associated with
-     * the first context found that includes the URL for the message, or the default parser if it is
-     * not in a context
-     *
-     * @param msg
-     * @param type
-     * @return
-     * @deprecated 2.10.0 use #getParameters(String) This method will lose duplicated parameter
-     *     names
-     */
-    @Deprecated
-    public Map<String, String> getParams(HttpMessage msg, HtmlParameter.Type type) {
-        switch (type) {
-            case form:
-                return this.getFormParamParser(msg.getRequestHeader().getURI().toString())
-                        .getParams(msg, type);
-            case url:
-                return this.getUrlParamParser(msg.getRequestHeader().getURI().toString())
-                        .getParams(msg, type);
-            default:
-                throw new InvalidParameterException("Type not supported: " + type);
-        }
-    }
-
-    /**
      * Gets the parameters of the given {@code type} from the given {@code message}.
      *
      * <p>Parameters' names and values are in decoded form.
@@ -1656,46 +1630,23 @@ public class Session {
      *     org.parosproxy.paros.network.HtmlParameter.Type)
      */
     public List<NameValuePair> getParameters(HttpMessage msg, HtmlParameter.Type type) {
-        if (msg == null) {
-            throw new IllegalArgumentException("Parameter msg must not be null.");
-        }
-        if (type == null) {
-            throw new IllegalArgumentException("Parameter type must not be null.");
-        }
+        return getParameters(SiteNodeQuery.fromHttpMessage(msg), type);
+    }
+
+    public List<NameValuePair> getParameters(SiteNodeQuery query, HtmlParameter.Type type) {
+        Objects.requireNonNull(query);
+        Objects.requireNonNull(type);
 
         switch (type) {
             case form:
-                return this.getFormParamParser(msg.getRequestHeader().getURI().toString())
-                        .getParameters(msg, type);
+                return this.getFormParamParser(query.getUri().toString())
+                        .getParameters(query, type);
             case url:
-                return this.getUrlParamParser(msg.getRequestHeader().getURI().toString())
-                        .getParameters(msg, type);
+                return this.getUrlParamParser(query.getUri().toString())
+                        .getParameters(query, type);
             default:
                 throw new IllegalArgumentException("The provided type is not supported: " + type);
         }
-    }
-
-    /**
-     * Returns the URL parameters for the given URL based on the parser associated with the first
-     * context found that includes the URL, or the default parser if it is not in a context
-     *
-     * @param uri
-     * @return
-     * @throws URIException
-     * @deprecated 2.10.0 use #getUrlParameters(String)
-     */
-    @Deprecated
-    public Map<String, String> getUrlParams(URI uri) throws URIException {
-        Map<String, String> map = new HashMap<>();
-        for (NameValuePair parameter :
-                getUrlParamParser(uri.toString()).parseParameters(uri.getEscapedQuery())) {
-            String value = parameter.getValue();
-            if (value == null) {
-                value = "";
-            }
-            map.put(parameter.getName(), value);
-        }
-        return map;
     }
 
     /**
@@ -1719,37 +1670,10 @@ public class Session {
      * @param formData
      * @return the FORM parameters for the given URL
      * @throws URIException
-     * @deprecated 2.10.0 use #getFormParameters(String)
-     */
-    @Deprecated
-    public Map<String, String> getFormParams(URI uri, String formData) throws URIException {
-        return this.getFormParamParser(uri.toString()).parse(formData);
-    }
-
-    /**
-     * Returns the FORM parameters for the given URL based on the parser associated with the first
-     * context found that includes the URL, or the default parser if it is not in a context
-     *
-     * @param uri
-     * @param formData
-     * @return the FORM parameters for the given URL
-     * @throws URIException
      * @since 2.10.0
      */
     public List<NameValuePair> getFormParameters(URI uri, String formData) throws URIException {
         return this.getFormParamParser(uri.toString()).parseParameters(formData);
-    }
-
-    /** @deprecated use {@link SessionStructure#getTeeePath(Model, URI)} */
-    @Deprecated
-    public List<String> getTreePath(URI uri) throws URIException {
-        return SessionStructure.getTreePath(Model.getSingleton(), uri);
-    }
-
-    /** @deprecated use {@link SessionStructure#getTeeePath(Model, HttpMessage)} */
-    @Deprecated
-    public List<String> getTreePath(HttpMessage msg) throws URIException {
-        return SessionStructure.getTreePath(Model.getSingleton(), msg);
     }
 
     // ZAP: Added listeners for contexts changed events.

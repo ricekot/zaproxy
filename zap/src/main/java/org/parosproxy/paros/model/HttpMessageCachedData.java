@@ -19,8 +19,9 @@
  */
 package org.parosproxy.paros.model;
 
-import java.lang.ref.WeakReference;
+import java.lang.ref.SoftReference;
 import org.apache.commons.httpclient.URI;
+import org.parosproxy.paros.network.HttpHeader;
 import org.parosproxy.paros.network.HttpMessage;
 
 public class HttpMessageCachedData {
@@ -33,10 +34,11 @@ public class HttpMessageCachedData {
     private final long timeSentMillis;
     private final int requestHeaderLength;
     private final int requestBodyLength;
+    private final String requestContentType;
     private final int responseHeaderLength;
     private final int responseBodyLength;
     private boolean note;
-    private WeakReference<String> wrRequestBody;
+    private SoftReference<String> srRequestBody;
 
     public HttpMessageCachedData(HttpMessage msg) {
         this.method = msg.getRequestHeader().getMethod();
@@ -48,9 +50,10 @@ public class HttpMessageCachedData {
         this.timeSentMillis = msg.getTimeSentMillis();
         this.requestHeaderLength = msg.getRequestHeader().toString().length();
         this.requestBodyLength = msg.getRequestBody().length();
+        this.requestContentType = msg.getRequestHeader().getHeader(HttpHeader.CONTENT_TYPE);
         this.responseHeaderLength = msg.getResponseHeader().toString().length();
         this.responseBodyLength = msg.getResponseBody().length();
-        this.wrRequestBody = new WeakReference<>(msg.getRequestBody().toString());
+        this.srRequestBody = new SoftReference<>(msg.getRequestBody().toString());
     }
 
     public String getMethod() {
@@ -97,6 +100,10 @@ public class HttpMessageCachedData {
         return requestBodyLength;
     }
 
+    public String getRequestBodyContentType() {
+        return requestContentType;
+    }
+
     public int getResponseHeaderLength() {
         return responseHeaderLength;
     }
@@ -106,11 +113,11 @@ public class HttpMessageCachedData {
     }
 
     public String getRequestBody() {
-        return wrRequestBody.get();
+        return srRequestBody.get();
     }
 
     public void setRequestBody(String requestBody) {
-        this.wrRequestBody.clear();
-        this.wrRequestBody = new WeakReference<>(requestBody);
+        this.srRequestBody.clear();
+        this.srRequestBody = new SoftReference<>(requestBody);
     }
 }

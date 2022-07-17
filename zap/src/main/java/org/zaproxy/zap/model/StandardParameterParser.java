@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,6 +41,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.network.HtmlParameter;
 import org.parosproxy.paros.network.HtmlParameter.Type;
+import org.parosproxy.paros.network.HttpHeader;
 import org.parosproxy.paros.network.HttpMessage;
 
 public class StandardParameterParser implements ParameterParser {
@@ -164,22 +166,23 @@ public class StandardParameterParser implements ParameterParser {
      */
     @Override
     public List<NameValuePair> getParameters(HttpMessage msg, Type type) {
-        if (msg == null) {
-            throw new IllegalArgumentException("Parameter msg must not be null.");
-        }
-        if (type == null) {
-            throw new IllegalArgumentException("Parameter type must not be null.");
-        }
+        return this.getParameters(SiteNodeQuery.fromHttpMessage(msg), type);
+    }
+
+    @Override
+    public List<NameValuePair> getParameters(SiteNodeQuery nodeQuery, Type type) {
+        Objects.requireNonNull(nodeQuery);
+        Objects.requireNonNull(type);
 
         switch (type) {
             case form:
-                return parseParameters(msg.getRequestBody().toString());
+                return parseParameters(nodeQuery.getRequestBody());
             case url:
-                String query = msg.getRequestHeader().getURI().getEscapedQuery();
-                if (query == null) {
-                    return new ArrayList<>(0);
+                String urlQuery = nodeQuery.getUri().getEscapedQuery();
+                if (urlQuery == null) {
+                    return Collections.emptyList();
                 }
-                return parseParameters(query);
+                return parseParameters(urlQuery);
             default:
                 throw new IllegalArgumentException("The provided type is not supported: " + type);
         }
@@ -319,64 +322,73 @@ public class StandardParameterParser implements ParameterParser {
 
     @Override
     public List<String> getTreePath(URI uri) throws URIException {
-        return this.getTreePath(uri, true);
+        return this.getTreePath(SiteNodeQuery.builder().uri(uri).build());
     }
 
-    private List<String> getTreePath(URI uri, boolean incStructParams) throws URIException {
+    @Override
+    public List<String> getTreePath(SiteNodeQuery query) throws URIException {
+        List<String> result = this.getTreePath(query.getUri(), query.getHttpMethod(), true);
+
+        // Add any structural params (form params) in key order
+        String contentType = query.getContentTypeHeader();
+        if (contentType != null && contentType.startsWith("application/x-www-form-urlencoded")) {
+            List<NameValuePair> formParams = this.parseParameters(query.getRequestBody());
+            formParams.stream()
+                    .map(NameValuePair::getName)
+                    .filter(structuralParameters::contains)
+                    .sorted()
+                    .forEach(result::add);
+        }
+        return result;
+    }
+
+    private List<String> getTreePath(URI uri, String method, boolean incStructParams)
+            throws URIException {
         String path = uri.getPath();
         List<String> list = new ArrayList<>();
         if (path != null) {
             Context context = this.getContext();
-            if (context != null) {
-                String uriStr = uri.toString();
+            String uriStr = uri.toString();
+            if (context != null && !isExcludedDataDrivenNode(uriStr, method)) {
                 boolean changed = false;
-                boolean excluded = false;
-
-                for (StructuralNodeModifier exclusion : context.getDataDrivenNodeExclusions()) {
-                    Matcher m = exclusion.getPattern().matcher(uriStr);
-                    if (m.matches()) {
-                        excluded = true;
-                        break;
+                for (StructuralNodeModifier ddn : context.getDataDrivenNodes()) {
+                    if (!ddn.hasMethod(method)) {
+                        continue;
                     }
-                }
-
-                if (!excluded) {
-                    for (StructuralNodeModifier ddn : context.getDataDrivenNodes()) {
-                        Matcher m = ddn.getPattern().matcher(uriStr);
-                        if (m.find()) {
-                            if (m.groupCount() == 3) {
-                                path =
-                                        m.group(1)
-                                                + SessionStructure.DATA_DRIVEN_NODE_PREFIX
-                                                + ddn.getName()
-                                                + SessionStructure.DATA_DRIVEN_NODE_POSTFIX
-                                                + m.group(3);
-                                if (!path.startsWith("/")) {
-                                    // Should always start with a slash;)
-                                    path = "/" + path;
-                                }
-                                changed = true;
-                            } else if (m.groupCount() == 2) {
-                                path =
-                                        m.group(1)
-                                                + SessionStructure.DATA_DRIVEN_NODE_PREFIX
-                                                + ddn.getName()
-                                                + SessionStructure.DATA_DRIVEN_NODE_POSTFIX;
-                                if (!path.startsWith("/")) {
-                                    // Should always start with a slash;)
-                                    path = "/" + path;
-                                }
-                                changed = true;
+                    Matcher m = ddn.getPattern().matcher(uriStr);
+                    if (m.find()) {
+                        if (m.groupCount() == 3) {
+                            path =
+                                    m.group(1)
+                                            + SessionStructure.DATA_DRIVEN_NODE_PREFIX
+                                            + ddn.getName()
+                                            + SessionStructure.DATA_DRIVEN_NODE_POSTFIX
+                                            + m.group(3);
+                            if (!path.startsWith("/")) {
+                                // Should always start with a slash;)
+                                path = "/" + path;
                             }
+                            changed = true;
+                        } else if (m.groupCount() == 2) {
+                            path =
+                                    m.group(1)
+                                            + SessionStructure.DATA_DRIVEN_NODE_PREFIX
+                                            + ddn.getName()
+                                            + SessionStructure.DATA_DRIVEN_NODE_POSTFIX;
+                            if (!path.startsWith("/")) {
+                                // Should always start with a slash;)
+                                path = "/" + path;
+                            }
+                            changed = true;
                         }
                     }
-                    if (changed) {
-                        log.debug("Changed path from " + uri.getPath() + " to " + path);
-                    }
+                }
+                if (changed) {
+                    log.debug("Changed path from " + uri.getPath() + " to " + path);
                 }
             }
 
-            // Note: Start from the 2nd path element as the first on is always the empty string due
+            // Note: Start from the 2nd path element as the first one is always the empty string due
             // to the split
             String[] pathList = path.split("/");
             for (int i = 1; i < pathList.length; i++) {
@@ -404,18 +416,12 @@ public class StandardParameterParser implements ParameterParser {
 
     @Override
     public List<String> getTreePath(HttpMessage msg) throws URIException {
-        URI uri = msg.getRequestHeader().getURI();
-
-        List<String> list = getTreePath(uri);
-
-        // Add any structural params (form params) in key order
-        List<NameValuePair> formParams = this.parseParameters(msg.getRequestBody().toString());
-        formParams.stream()
-                .map(NameValuePair::getName)
-                .filter(structuralParameters::contains)
-                .sorted()
-                .forEach(list::add);
-        return list;
+        return this.getTreePath(SiteNodeQuery.builder()
+                .uri(msg.getRequestHeader().getURI())
+                .contentTypeHeader(msg.getRequestHeader().getHeader(HttpHeader.CONTENT_TYPE))
+                .httpMethod(msg.getRequestHeader().getMethod())
+                .requestBody(msg.getRequestBody().toString())
+                .build());
     }
 
     @Override
@@ -425,7 +431,7 @@ public class StandardParameterParser implements ParameterParser {
         if (depth == 0 || path == null) {
             return "";
         }
-        List<String> pathList = getTreePath(uri, false);
+        List<String> pathList = getTreePath(uri, null, false);
 
         // Add the 'normal' (plus data driven) path elements
         // until we finish them or we reach the desired depth
@@ -467,6 +473,26 @@ public class StandardParameterParser implements ParameterParser {
             }
         }
         return parentPath.toString();
+    }
+
+    private boolean isExcludedDataDrivenNode(String uri, String method) {
+        Context context = this.getContext();
+        if (context == null) {
+            return false;
+        }
+        for (StructuralNodeModifier exclusion : context.getDataDrivenNodeExclusions()) {
+            if (exclusion.hasMethod(method) && exclusion.getPattern().matcher(uri).find()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isMethodSupportedByDdn(StructuralNodeModifier ddn, String method) {
+        if (method == null || ddn.getMethods() == null || ddn.getMethods().isEmpty()) {
+            return true;
+        }
+        return ddn.getMethods().contains(method);
     }
 
     @Override
