@@ -26,6 +26,7 @@ import java.util.function.Consumer;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
 import org.apache.commons.collections.map.ReferenceMap;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -34,6 +35,7 @@ import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.extension.ExtensionAdaptor;
 import org.parosproxy.paros.extension.ExtensionHook;
 import org.parosproxy.paros.view.MainMenuBar;
+import org.zaproxy.zap.extension.api.API;
 import org.zaproxy.zap.utils.DesktopUtils;
 import org.zaproxy.zap.view.ZapMenuItem;
 
@@ -47,6 +49,7 @@ public class ExtensionKeyboard extends ExtensionAdaptor {
     private KeyboardParam keyboardParam = null;
     private ReferenceMap map = new ReferenceMap();
     private KeyboardAPI api = null;
+    private volatile KeyboardShortcutProvider shortcutProvider;
 
     /**
      * The identifiers of the menus with duplicated default accelerators.
@@ -89,7 +92,7 @@ public class ExtensionKeyboard extends ExtensionAdaptor {
 
     @Override
     public void postInit() {
-        if (hasView()) {
+        if (hasView() && shortcutProvider == null) {
             LOGGER.info("Initializing keyboard shortcuts");
             processMainMenuBarMenus(this::initAllMenuItems);
         }
@@ -105,7 +108,79 @@ public class ExtensionKeyboard extends ExtensionAdaptor {
         }
     }
 
+    /**
+     * Replaces the keyboard implementation, or restores the legacy implementation with {@code
+     * null}.
+     *
+     * <p>Call on the EDT after all extensions have been hooked (for example, from {@link
+     * #postInit()}). The provider owns its resources and must not also register them with an
+     * extension hook. Before unloading its add-on, clear the provider here so its resources are
+     * removed before the legacy implementation is restored. The shared {@code keyboard.shortcuts}
+     * configuration is retained.
+     *
+     * @param provider the replacement, or {@code null} to restore the legacy implementation.
+     * @throws IllegalStateException if called off the EDT, before GUI initialization, or while a
+     *     different replacement is installed.
+     * @since 2.18.0
+     */
+    public void setShortcutProvider(KeyboardShortcutProvider provider) {
+        if (!SwingUtilities.isEventDispatchThread() || !hasView() || api == null) {
+            throw new IllegalStateException(
+                    "Keyboard replacement requires an initialized GUI and the EDT.");
+        }
+        if (shortcutProvider == provider) {
+            return;
+        }
+        if (provider == null) {
+            shortcutProvider.stop();
+            shortcutProvider = null;
+            restoreLegacyImplementation();
+            return;
+        }
+        if (shortcutProvider != null) {
+            throw new IllegalStateException("A keyboard shortcut provider is already installed.");
+        }
+
+        getKeyboardParam().setConfigs();
+        getView().getOptionsDialog().removeParamPanel(getOptionsKeyboardPanel());
+        getModel().getOptionsParam().removeParamSet(getKeyboardParam());
+        API.getInstance().removeApiImplementor(api);
+        map.clear();
+        menusDupDefaultAccelerator = null;
+        shortcutProvider = provider;
+        try {
+            provider.start();
+        } catch (RuntimeException | Error e) {
+            try {
+                provider.stop();
+            } catch (RuntimeException | Error cleanupError) {
+                e.addSuppressed(cleanupError);
+            }
+            shortcutProvider = null;
+            try {
+                restoreLegacyImplementation();
+            } catch (RuntimeException | Error restoreError) {
+                e.addSuppressed(restoreError);
+            }
+            throw e;
+        }
+    }
+
+    private void restoreLegacyImplementation() {
+        getModel().getOptionsParam().addParamSet(getKeyboardParam());
+        // Do not reuse an editor whose pending changes predate the replacement.
+        optionsKeyboardPanel = null;
+        getView().getOptionsDialog().addParamPanel(new String[0], getOptionsKeyboardPanel(), true);
+        API.getInstance().registerApiImplementor(api);
+        postInit();
+    }
+
     public void registerMenuItem(ZapMenuItem zme) {
+        KeyboardShortcutProvider provider = shortcutProvider;
+        if (provider != null) {
+            provider.registerMenuItem(zme);
+            return;
+        }
         String identifier = zme.getIdentifier();
         if (identifier != null) {
             validateDefaultAccelerator(zme);
@@ -223,6 +298,10 @@ public class ExtensionKeyboard extends ExtensionAdaptor {
     }
 
     public List<KeyboardShortcut> getShortcuts(boolean reset) {
+        KeyboardShortcutProvider provider = shortcutProvider;
+        if (provider != null) {
+            return provider.getShortcuts(reset);
+        }
         if (hasView()) {
             List<KeyboardShortcut> kss = new ArrayList<>();
             processMainMenuBarMenus(menu -> addAllMenuItems(kss, menu, reset));
@@ -272,6 +351,10 @@ public class ExtensionKeyboard extends ExtensionAdaptor {
     }
 
     public KeyStroke getShortcut(String identifier) {
+        KeyboardShortcutProvider provider = shortcutProvider;
+        if (provider != null) {
+            return provider.getShortcut(identifier);
+        }
         KeyboardMapping mapping = (KeyboardMapping) this.map.get(identifier);
         if (mapping == null) {
             return null;
@@ -280,6 +363,11 @@ public class ExtensionKeyboard extends ExtensionAdaptor {
     }
 
     public void setShortcut(String identifier, KeyStroke ks) {
+        KeyboardShortcutProvider provider = shortcutProvider;
+        if (provider != null) {
+            provider.setShortcut(identifier, ks);
+            return;
+        }
         KeyboardMapping mapping = (KeyboardMapping) this.map.get(identifier);
         if (mapping == null) {
             LOGGER.error("No mapping found for keyboard shortcut: {}", identifier);
